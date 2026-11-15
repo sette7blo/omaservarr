@@ -1,0 +1,264 @@
+#!/usr/bin/env bash
+# CLI for the omaservarr Omarchy plugin: Sonarr, Radarr and Lidarr from the
+# terminal. Used by the panel, the launcher and agent skills.
+
+set -euo pipefail
+
+CONNECTION_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omaservarr/credentials.json"
+SERVICES=(sonarr radarr lidarr)
+
+die() { printf 'omaservarr: %s\n' "$*" >&2; exit 1; }
+
+need_jq() { command -v jq >/dev/null 2>&1 || die "jq is required for this command"; }
+
+is_service() {
+  local s
+  for s in "${SERVICES[@]}"; do [[ "$s" == "$1" ]] && return 0; done
+  return 1
+}
+
+service_name() {
+  case "$1" in
+    sonarr) echo Sonarr ;; radarr) echo Radarr ;; lidarr) echo Lidarr ;; *) echo "$1" ;;
+  esac
+}
+
+api_root() {
+  case "$1" in lidarr) echo /api/v1 ;; *) echo /api/v3 ;; esac
+}
+
+# The plugin's Settings view writes CONNECTION_FILE. SONARR_URL, SONARR_API_KEY
+# and the RADARR_/LIDARR_ equivalents in the environment override it.
+connection_field() {
+  local service="$1" field="$2"
+  [[ -r "$CONNECTION_FILE" ]] || return 0
+  if command -v jq >/dev/null 2>&1; then
+    jq -r --arg s "$service" --arg f "$field" '.[$s][$f] // empty' "$CONNECTION_FILE" 2>/dev/null || true
+  else
+    sed -n "/\"$service\"/,/}/s/.*\"$field\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$CONNECTION_FILE" | head -n 1
+  fi
+}
+
+base_url() {
+  local var="${1^^}_URL" url
+  url="${!var:-$(connection_field "$1" baseUrl)}"
+  printf '%s' "${url%/}"
+}
+
+api_key() {
+  local var="${1^^}_API_KEY"
+  printf '%s' "${!var:-$(connection_field "$1" apiKey)}"
+}
+
+configured() {
+  [[ -n "$(base_url "$1")" && -n "$(api_key "$1")" ]]
+}
+
+configured_services() {
+  local s
+  for s in "${SERVICES[@]}"; do
+    if configured "$s"; then echo "$s"; fi
+  done
+}
+
+require_service() {
+  is_service "${1:-}" || die "unknown service '${1:-}' (use sonarr, radarr or lidarr)"
+  configured "$1" || die "$(service_name "$1") is not set up. Open the plugin's Settings view."
+}
+
+# api <service> <METHOD> <path below the API root> [json body]
+# The key goes to curl on stdin, so it never shows up in a process listing.
+api() {
+  local service="$1" method="$2" path="$3" data="${4:-}"
+  local -a args=(-fsS -m 60 --proto '=http,https' -X "$method" -K -)
+  if [[ -n "$data" ]]; then
+    args+=(-H 'Content-Type: application/json' --data-binary "$data")
+  fi
+  [[ "$path" == /* ]] || path="/$path"
+  printf 'header = "X-Api-Key: %s"\nheader = "Accept: application/json"\n' "$(api_key "$service")" \
+    | curl "${args[@]}" -- "$(base_url "$service")$(api_root "$service")$path"
+}
+
+each_service() {
+  local fn="$1" s any=false
+  shift
+  for s in $(configured_services); do
+    any=true
+    "$fn" "$s" "$@" || printf '%s: request failed\n' "$(service_name "$s")" >&2
+  done
+  $any || die "no service is set up. Open the plugin's Settings view."
+}
+
+cmd_open() {
+  local service="${1:-}" path="${2:-/}"
+  if [[ -z "$service" ]]; then
+    service="$(configured_services | head -n 1)"
+    [[ -n "$service" ]] || die "no service is set up. Open the plugin's Settings view."
+  fi
+  is_service "$service" || die "unknown service '$service' (use sonarr, radarr or lidarr)"
+  local url
+  url="$(base_url "$service")"
+  [[ -n "$url" ]] || die "$(service_name "$service") has no address. Open the plugin's Settings view."
+  [[ "$path" == /* ]] || path="/$path"
+  xdg-open "$url$path" >/dev/null 2>&1 &
+  disown
+}
+
+status_one() {
+  local s="$1"
+  api "$s" GET /system/status | jq -r --arg n "$(service_name "$s")" '"\($n)  \(.version // "?")  ok"'
+}
+
+queue_query() {
+  case "$1" in
+    sonarr) echo 'includeUnknownSeriesItems=true&includeSeries=true&includeEpisode=true' ;;
+    radarr) echo 'includeUnknownMovieItems=true&includeMovie=true' ;;
+    lidarr) echo 'includeUnknownArtistItems=true&includeArtist=true&includeAlbum=true' ;;
+  esac
+}
+
+# jq: what a queue, history or calendar record is about, as "Title - detail".
+JQ_SUBJECT='
+def pad: tostring | if length < 2 then "0" + . else . end;
+def subject:
+  if .series then
+    (.series.title // "?") + (if .episode then " - S\(.episode.seasonNumber|pad)E\(.episode.episodeNumber|pad) \(.episode.title // "")" else "" end)
+  elif .movie then (.movie.title // "?") + (if .movie.year then " (\(.movie.year))" else "" end)
+  elif .artist then (.artist.artistName // "?") + (if .album then " - \(.album.title // "")" else "" end)
+  else (.title // "?") end;
+'
+
+queue_one() {
+  local s="$1"
+  api "$s" GET "/queue?page=1&pageSize=100&$(queue_query "$s")" | jq -r --arg n "$(service_name "$s")" "$JQ_SUBJECT"'
+    .records[]
+    | (if (.size // 0) > 0 then (((.size - (.sizeleft // 0)) / .size * 100) | floor | tostring) + "%" else "-" end) as $pct
+    | [$n, (.trackedDownloadState // .status // "?"), $pct, (.timeleft // "-"), subject] | @tsv'
+}
+
+health_one() {
+  local s="$1"
+  api "$s" GET /health | jq -r --arg n "$(service_name "$s")" '
+    if length == 0 then "\($n)\tok\tNo issues"
+    else .[] | [$n, (.type // "?"), (.message // "")] | @tsv end'
+}
+
+recent_one() {
+  local s="$1" extra
+  case "$s" in
+    sonarr) extra='eventType=3&includeSeries=true&includeEpisode=true' ;;
+    radarr) extra='eventType=3&includeMovie=true' ;;
+    lidarr) extra='eventType=8&includeArtist=true&includeAlbum=true' ;;
+  esac
+  api "$s" GET "/history?page=1&pageSize=20&sortKey=date&sortDirection=descending&$extra" \
+    | jq -r --arg n "$(service_name "$s")" "$JQ_SUBJECT"'
+      .records[] | [(.date // "")[0:16], $n, subject, (.quality.quality.name // "")] | @tsv'
+}
+
+upcoming_one() {
+  local s="$1" days="$2" start end extra=""
+  start="$(date -u -d "$(date +%F)" +%Y-%m-%dT%H:%M:%SZ)"
+  end="$(date -u -d "$(date +%F) +$days days" +%Y-%m-%dT%H:%M:%SZ)"
+  case "$s" in
+    sonarr) extra='&includeSeries=true' ;;
+    lidarr) extra='&includeArtist=true' ;;
+  esac
+  api "$s" GET "/calendar?start=$start&end=$end&unmonitored=false$extra" | jq -r --arg n "$(service_name "$s")" --arg start "$start" --arg end "$end" '
+    def pad: tostring | if length < 2 then "0" + . else . end;
+    .[]
+    | if .series then [(.airDateUtc // ""), $n, "\(.series.title // "?") - S\(.seasonNumber|pad)E\(.episodeNumber|pad) \(.title // "")"]
+      elif .artist then [(.releaseDate // ""), $n, "\(.artist.artistName // "?") - \(.title // "")"]
+      else
+        ([{d: .digitalRelease, k: "digital"}, {d: .physicalRelease, k: "physical"}, {d: .inCinemas, k: "cinemas"}]
+          | map(select(.d != null and .d >= $start and .d < $end)) | sort_by(.d) | first) as $r
+        | if $r then [$r.d, $n, "\(.title // "?") (\(.year // "?")) - \($r.k)"] else empty end
+      end
+    | [(.[0] | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 | strflocaltime("%a %d %b %H:%M")), .[1], .[2]] | @tsv'
+}
+
+missing_one() {
+  local s="$1"
+  api "$s" GET '/wanted/missing?page=1&pageSize=1' | jq -r --arg n "$(service_name "$s")" '"\($n)\t\(.totalRecords // 0) missing"'
+}
+
+cmd_status()   { need_jq; each_service status_one; }
+cmd_queue()    { need_jq; each_service queue_one | column -t -s $'\t'; }
+cmd_health()   { need_jq; each_service health_one | column -t -s $'\t'; }
+cmd_missing()  { need_jq; each_service missing_one | column -t -s $'\t'; }
+cmd_recent()   { need_jq; each_service recent_one | sort -r | head -n 30 | column -t -s $'\t'; }
+
+cmd_upcoming() {
+  need_jq
+  local days="${1:-7}"
+  [[ "$days" =~ ^[0-9]+$ && "$days" -ge 1 && "$days" -le 60 ]] || die "days must be between 1 and 60"
+  each_service upcoming_one "$days" | column -t -s $'\t'
+}
+
+cmd_search() {
+  need_jq
+  local service="${1:-}"
+  require_service "$service"
+  shift
+  [[ $# -gt 0 ]] || die "usage: omaservarr search <service> <term>"
+  local term endpoint
+  term="$(jq -rn --arg t "$*" '$t|@uri')"
+  case "$service" in
+    sonarr) endpoint=series ;; radarr) endpoint=movie ;; lidarr) endpoint=artist ;;
+  esac
+  api "$service" GET "/$endpoint/lookup?term=$term" | jq -r '
+    .[:10][]
+    | [ (.title // .artistName // "?"),
+        ((.year // "") | tostring),
+        (if (.id // 0) > 0 then "in library" else "not added" end),
+        ("tvdb:\(.tvdbId // empty)" // "tmdb:\(.tmdbId // empty)" // "mbid:\(.foreignArtistId // empty)" // "") ]
+    | @tsv' | column -t -s $'\t'
+}
+
+cmd_api() {
+  local service="${1:-}" method="${2:-}" path="${3:-}"
+  require_service "$service"
+  [[ "$method" =~ ^(GET|POST|PUT|DELETE)$ && -n "$path" ]] \
+    || die "usage: omaservarr api <service> <GET|POST|PUT|DELETE> <path> [json]"
+  api "$service" "$method" "$path" "${4:-}"
+  echo
+}
+
+usage() {
+  cat <<EOF
+Usage: omaservarr <command> [args]
+
+Commands:
+  open [service] [path]           Open a service's web UI (default: the first one set up)
+  status                          Version of each service that answers
+  queue                           Download queue across all services
+  upcoming [days]                 Episodes, movies and albums due (default 7 days)
+  recent                          Latest imports
+  health                          Health checks
+  missing                         Count of monitored items without files
+  search <service> <term>         Look a title up (does not add it)
+  api <service> <METHOD> <path> [json]
+                                  Raw request below the API root, e.g.
+                                  omaservarr api sonarr GET /rootfolder
+
+Services: sonarr, radarr, lidarr
+
+Connection:
+  $CONNECTION_FILE
+  (addresses and API keys, written by the plugin's Settings view;
+  SONARR_URL, SONARR_API_KEY and the RADARR_/LIDARR_ equivalents override it)
+EOF
+}
+
+case "${1:-}" in
+  open)     shift; cmd_open "$@" ;;
+  status)   cmd_status ;;
+  queue)    cmd_queue ;;
+  upcoming) shift; cmd_upcoming "$@" ;;
+  recent)   cmd_recent ;;
+  health)   cmd_health ;;
+  missing)  cmd_missing ;;
+  search)   shift; cmd_search "$@" ;;
+  api)      shift; cmd_api "$@" ;;
+  ""|-h|--help) usage ;;
+  *)        usage >&2; exit 2 ;;
+esac
