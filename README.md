@@ -68,6 +68,8 @@ addresses:
 Five tabs over one list. Clicking a row opens that item in the service's
 web UI.
 
+![The Library tab: totals per service on top, then every series, movie and artist with how much of it is on disk](docs/panel.png)
+
 | Tab | Shows | Source |
 |---|---|---|
 | Queue | Active and waiting downloads with progress and time left. Blocked or failed items come first, with the reason. | `GET /queue` |
