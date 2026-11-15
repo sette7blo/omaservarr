@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=Servarr
+GenericName=Media Manager
+Comment=Open Sonarr, Radarr or Lidarr
+Exec=@@OMASERVARR_CLI@@ open
+Icon=applications-multimedia
+Terminal=false
+Categories=AudioVideo;Network;
+Keywords=sonarr;radarr;lidarr;servarr;media;downloads;
+Actions=sonarr;radarr;lidarr;
+
+[Desktop Action sonarr]
+Name=Open Sonarr
+Exec=@@OMASERVARR_CLI@@ open sonarr
+
+[Desktop Action radarr]
+Name=Open Radarr
+Exec=@@OMASERVARR_CLI@@ open radarr
+
+[Desktop Action lidarr]
+Name=Open Lidarr
+Exec=@@OMASERVARR_CLI@@ open lidarr
