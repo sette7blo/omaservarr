@@ -344,8 +344,8 @@ Item {
 
   // --- Lifecycle -----------------------------------------------------------
   // install.sh --if-needed finishes what omarchy plugin add does not (the
-  // command, the launcher, the agent skills) and exits at once when that is
-  // already done.
+  // command and the launcher) and exits at once when that is already done.
+  // It never links the agent skills; that takes install.sh --skills by hand.
   Process {
     id: installProc
     running: false

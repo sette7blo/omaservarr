@@ -4,10 +4,11 @@ Omarchy plugin for the Servarr stack: one bar icon and one panel for
 [Sonarr](https://sonarr.tv), [Radarr](https://radarr.video) and
 [Lidarr](https://lidarr.audio). It shows the download queue, upcoming
 releases, recent imports, the library and health warnings, and comes with a
-command line tool, a launcher and agent skills.
+command line tool, a launcher and optional agent skills.
 
 The plugin only reads from your services. Adding a title is done by the
-`omaservarr-add` agent skill, and only after you confirm it.
+`omaservarr-add` agent skill, if you install the skills, and only after you
+confirm it.
 
 ## Requirements
 
@@ -24,7 +25,7 @@ omarchy plugin add https://github.com/sette7blo/omaservarr.git --enable
 ```
 
 That is the only command. The first time the plugin loads, it links the
-`omaservarr` command, a launcher and the agent skills. Then click the bar
+`omaservarr` command and a launcher. Then click the bar
 icon, then the gear. Pick a service, enter its address and API key, click
 **Test**, repeat for the others, then **Save**. Leave a service empty to skip
 it.
@@ -41,6 +42,8 @@ addresses:
 ```
 
 `--no-enable` links everything but leaves the bar widget for you to enable.
+`--skills` also links the [agent skills](#agent-skills), which are never
+installed otherwise.
 
 ## What gets installed
 
@@ -51,7 +54,7 @@ addresses:
 | `~/.local/share/applications/omaservarr.desktop` | Launcher entry |
 | `~/.local/state/omarchy/omaservarr/credentials.json` | Addresses and API keys (mode 600, written by the Settings view) |
 | `~/.cache/omarchy/omaservarr/` | One curl header file per service (mode 600) |
-| `~/.claude/skills/omaservarr-*`, `~/.codex/skills/omaservarr-*`, etc. | Agent skills (only if the agent dir exists) |
+| `~/.claude/skills/omaservarr-*`, `~/.codex/skills/omaservarr-*`, etc. | Agent skills, only after `install.sh --skills` and only if the agent dir exists |
 
 ## Bar icon
 
@@ -110,9 +113,16 @@ stdin, not on the command line.
 
 ## Agent skills
 
-Install adds `SKILL.md` symlinks to whichever agent homes exist
+The skills are optional and are not installed with the plugin. To add them:
+
+```sh
+~/.config/omarchy/plugins/io.github.sette7blo.omaservarr/install.sh --skills
+```
+
+That links five `SKILL.md` folders into whichever agent homes exist
 (`~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/`,
-`~/.copilot/skills/`):
+`~/.copilot/skills/`). The plugin itself never creates these links or puts
+one back; `uninstall.sh --skills` removes them and leaves everything else.
 
 - **omaservarr-queue**: what is downloading, and why something is stuck
 - **omaservarr-upcoming**: what airs or releases soon, and recent imports
@@ -162,6 +172,7 @@ omaservarr.desktop.in      Launcher template (install.sh fills in the CLI path)
 agent-skill/               Five SKILL.md files
 tests/model.test.js        Node tests for Model.js
 install.sh / uninstall.sh  Setup the plugin runs on load, clean uninstall
+                           (--skills adds or removes the agent skills)
 ```
 
 ## License

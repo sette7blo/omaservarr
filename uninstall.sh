@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Reverses install.sh: removes the symlinks, the saved addresses and API keys
 # and the header cache. Never touches Sonarr, Radarr or Lidarr themselves.
+# With --skills it removes the agent skill links and nothing else.
 
 set -euo pipefail
 
@@ -28,6 +29,35 @@ remove_link() {
   fi
 }
 
+# Only links that point into this plugin are removed, so a skill of the same
+# name from somewhere else stays.
+remove_skills() {
+  local agent_home skill_src link
+  for agent_home in "$HOME/.claude" "$HOME/.codex" "$HOME/.agents" "$HOME/.copilot"; do
+    [[ -d "$agent_home/skills" ]] || continue
+    for skill_src in "$PROJECT_DIR"/agent-skill/*/; do
+      [[ -d "$skill_src" ]] || continue
+      link="$agent_home/skills/$(basename "$skill_src")"
+      if [[ -L "$link" && "$(readlink -f "$link")" == "$(readlink -f "$skill_src")" ]]; then
+        remove_link "$link"
+      fi
+    done
+  done
+}
+
+SKILLS_ONLY=false
+case "${1:-}" in
+  "") ;;
+  --skills) SKILLS_ONLY=true ;;
+  *) echo "Usage: $0 [--skills]" >&2; exit 2 ;;
+esac
+
+if $SKILLS_ONLY; then
+  remove_skills
+  log "removed the agent skill links"
+  exit 0
+fi
+
 if command -v omarchy >/dev/null 2>&1; then
   omarchy plugin disable "$PLUGIN_ID" >/dev/null 2>&1 || true
 fi
@@ -38,14 +68,7 @@ remove_link "$PLUGIN_LINK"
 remove_link "$CLI_LINK"
 remove_link "$DESKTOP_LINK"
 remove_link "$MENU_LINK"
-
-for agent_home in "$HOME/.claude" "$HOME/.codex" "$HOME/.agents" "$HOME/.copilot"; do
-  [[ -d "$agent_home/skills" ]] || continue
-  for skill_src in "$PROJECT_DIR"/agent-skill/*/; do
-    [[ -d "$skill_src" ]] || continue
-    remove_link "$agent_home/skills/$(basename "$skill_src")"
-  done
-done
+remove_skills
 
 for dir in "$STATE_DIR" "$CACHE_DIR"; do
   if [[ -d "$dir" ]]; then
