@@ -21,8 +21,8 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - The agent skills are opt-in. The plugin no longer links them into `~/.claude`,
-  `~/.codex`, `~/.agents` or `~/.copilot` when it loads; run `install.sh --skills` to add
-  them and `uninstall.sh --skills` to remove them. Links made by an earlier version stay
+  `~/.codex`, `~/.agents` or `~/.copilot` when it loads. Settings has a button to install
+  or remove them, and `install.sh --skills` and `uninstall.sh --skills` do the same. Links made by an earlier version stay
   until you remove them.
 - The manifest names a Monero address for tips (`"funding": { "monero": "..." }`).
 

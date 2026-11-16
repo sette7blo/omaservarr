@@ -69,7 +69,11 @@ Column {
     service.persistConnection(draft)
   }
 
-  Component.onCompleted: reset()
+  Component.onCompleted: {
+    reset()
+    if (service) service.checkSkills()
+  }
+  onVisibleChanged: if (visible && service) service.checkSkills()
   onCurrentChanged: showCurrent()
 
   Connections {
@@ -216,6 +220,46 @@ Column {
     accent: root.accent
     fontFamily: root.fontFamily
     onModified: function(v) { root.edited = true; daysField.value = v }
+  }
+
+  PanelSeparator { foreground: root.foreground }
+
+  // ---- Agent skills ----
+  // Never linked on their own; this button is the opt-in.
+  Column {
+    id: skillsSection
+    width: parent.width
+    spacing: Style.spacing.md
+    visible: mode !== ""
+
+    readonly property string mode: root.service ? root.service.skillsState : ""
+    readonly property bool busy: !!root.service && root.service.skillsBusy
+
+    FieldLabel { text: "Agent skills" }
+    Text {
+      textFormat: Text.PlainText
+      width: parent.width
+      text: skillsSection.mode === "installed"
+        ? "Linked into the agent skill folders on this machine. Removing them leaves everything else in place."
+        : (skillsSection.mode === "unavailable"
+          ? "No agent folder found (~/.claude, ~/.codex, ~/.agents or ~/.copilot), so there is nowhere to link the skills."
+          : "Optional. Links five skills into ~/.claude/skills and the other agent folders on this machine, so an agent can check the queue, upcoming, library and health and add a title after you confirm. Nothing is linked until you press the button.")
+      color: root.dim
+      wrapMode: Text.WordWrap
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+    }
+    Button {
+      visible: skillsSection.mode !== "unavailable"
+      text: skillsSection.mode === "installed" ? "Remove agent skills" : "Install agent skills"
+      bordered: true
+      enabled: !skillsSection.busy
+      opacity: skillsSection.busy ? 0.45 : 1
+      foreground: root.foreground
+      accent: root.accent
+      fontFamily: root.fontFamily
+      onClicked: if (root.service) root.service.setSkills(skillsSection.mode !== "installed")
+    }
   }
 
   PanelSeparator { foreground: root.foreground }

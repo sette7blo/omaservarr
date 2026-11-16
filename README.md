@@ -43,7 +43,7 @@ addresses:
 
 `--no-enable` links everything but leaves the bar widget for you to enable.
 `--skills` also links the [agent skills](#agent-skills), which are never
-installed otherwise.
+installed unless you ask for them.
 
 ## What gets installed
 
@@ -54,7 +54,7 @@ installed otherwise.
 | `~/.local/share/applications/omaservarr.desktop` | Launcher entry |
 | `~/.local/state/omarchy/omaservarr/credentials.json` | Addresses and API keys (mode 600, written by the Settings view) |
 | `~/.cache/omarchy/omaservarr/` | One curl header file per service (mode 600) |
-| `~/.claude/skills/omaservarr-*`, `~/.codex/skills/omaservarr-*`, etc. | Agent skills, only after `install.sh --skills` and only if the agent dir exists |
+| `~/.claude/skills/omaservarr-*`, `~/.codex/skills/omaservarr-*`, etc. | Agent skills, only if you install them and only if the agent dir exists |
 
 ## Bar icon
 
@@ -113,16 +113,19 @@ stdin, not on the command line.
 
 ## Agent skills
 
-The skills are optional and are not installed with the plugin. To add them:
+The skills are optional and are not installed with the plugin. To add them,
+open the panel's Settings (the gear) and press **Install agent skills**, or
+run:
 
 ```sh
 ~/.config/omarchy/plugins/io.github.sette7blo.omaservarr/install.sh --skills
 ```
 
-That links five `SKILL.md` folders into whichever agent homes exist
+Either links five `SKILL.md` folders into whichever agent homes exist
 (`~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/`,
 `~/.copilot/skills/`). The plugin itself never creates these links or puts
-one back; `uninstall.sh --skills` removes them and leaves everything else.
+one back. **Remove agent skills** in Settings, or `uninstall.sh --skills`,
+removes them and leaves everything else.
 
 - **omaservarr-queue**: what is downloading, and why something is stuck
 - **omaservarr-upcoming**: what airs or releases soon, and recent imports
