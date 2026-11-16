@@ -242,8 +242,8 @@ Column {
       text: skillsSection.mode === "installed"
         ? "Linked into the agent skill folders on this machine. Removing them leaves everything else in place."
         : (skillsSection.mode === "unavailable"
-          ? "No agent folder found (~/.claude, ~/.codex, ~/.agents or ~/.copilot), so there is nowhere to link the skills."
-          : "Optional. Links five skills into ~/.claude/skills and the other agent folders on this machine, so an agent can check the queue, upcoming, library and health and add a title after you confirm. Nothing is linked until you press the button.")
+          ? "No agent folder found (~/.agents, ~/.claude, ~/.codex or ~/.copilot), so there is nowhere to link the skills."
+          : "Optional. Links five skills into the skill folders of the agents on this machine (~/.agents, ~/.claude, ~/.codex and ~/.copilot, whichever exist), so an agent can check the queue, upcoming, library and health and add a title after you confirm. Nothing is linked until you press the button.")
       color: root.dim
       wrapMode: Text.WordWrap
       font.family: root.fontFamily

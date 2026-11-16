@@ -54,7 +54,7 @@ installed unless you ask for them.
 | `~/.local/share/applications/omaservarr.desktop` | Launcher entry |
 | `~/.local/state/omarchy/omaservarr/credentials.json` | Addresses and API keys (mode 600, written by the Settings view) |
 | `~/.cache/omarchy/omaservarr/` | One curl header file per service (mode 600) |
-| `~/.claude/skills/omaservarr-*`, `~/.codex/skills/omaservarr-*`, etc. | Agent skills, only if you install them and only if the agent dir exists |
+| `~/.agents/skills/omaservarr-*`, `~/.claude/skills/omaservarr-*`, etc. | Agent skills, only if you install them and only if the agent dir exists |
 
 ## Bar icon
 
@@ -122,7 +122,7 @@ run:
 ```
 
 Either links five `SKILL.md` folders into whichever agent homes exist
-(`~/.claude/skills/`, `~/.codex/skills/`, `~/.agents/skills/`,
+(`~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/`,
 `~/.copilot/skills/`). The plugin itself never creates these links or puts
 one back. **Remove agent skills** in Settings, or `uninstall.sh --skills`,
 removes them and leaves everything else.
