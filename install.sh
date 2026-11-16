@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Idempotent installer for the omaservarr Omarchy plugin.
-# Links the CLI, the launcher and the agent skills, and enables the bar
-# widget. The plugin runs it with --if-needed on every load, so after
-# `omarchy plugin add` there is nothing else to run.
+# Links the CLI and the launcher and enables the bar widget. The plugin runs
+# it with --if-needed on every load, so after `omarchy plugin add` there is
+# nothing else to run. The agent skills are linked only on request, with
+# --skills; a run without it never creates or checks them.
 
 set -euo pipefail
 
@@ -25,13 +26,22 @@ CONNECTION_FILE="$CONNECTION_DIR/credentials.json"
 declare -A URLS=([sonarr]="" [radarr]="" [lidarr]="")
 ENABLE=true
 IF_NEEDED=false
+SKILLS=false
+SKILLS_STATUS=false
 
 usage() {
   cat <<USAGE
-Usage: $0 [--sonarr-url URL] [--radarr-url URL] [--lidarr-url URL] [--no-enable] [--if-needed]
+Usage: $0 [--sonarr-url URL] [--radarr-url URL] [--lidarr-url URL] [--skills] [--no-enable] [--if-needed]
+       $0 --skills-status
 
 The --*-url options pre-fill the addresses the plugin and the omaservarr CLI
 share. API keys are entered in the plugin's Settings view.
+--skills    also links the agent skills into the agent homes that exist
+            (~/.claude, ~/.codex, ~/.agents, ~/.copilot). Never done without
+            this option. uninstall.sh --skills removes them again.
+            The Settings view has a button that does the same.
+--skills-status prints installed, none, or unavailable (no agent home found)
+            and changes nothing.
 --no-enable links everything but leaves the bar widget for you to enable.
 --if-needed does nothing when everything is already in place. The plugin's
             service runs the installer this way each time it loads.
@@ -45,6 +55,10 @@ while [[ $# -gt 0 ]]; do
       name="${1#--}"; name="${name%-url}"
       [[ "$2" =~ ^https?://[^[:space:]\"\\]+$ ]] || { echo "$1 must be an http:// or https:// address" >&2; exit 2; }
       URLS[$name]="${2%/}"; shift 2 ;;
+    --skills)
+      SKILLS=true; shift ;;
+    --skills-status)
+      SKILLS_STATUS=true; shift ;;
     --no-enable)
       ENABLE=false; shift ;;
     --if-needed)
@@ -107,6 +121,7 @@ setup_complete() {
   linked_to "$CLI_LINK" "$PROJECT_DIR/bin/omaservarr" || return 1
   [[ -e "$PROJECT_DIR/omaservarr.desktop" ]] && linked_to "$DESKTOP_LINK" "$PROJECT_DIR/omaservarr.desktop" || return 1
   [[ -L "$OLD_MENU_LINK" ]] && return 1
+  $SKILLS || return 0
   for skill_src in "$PROJECT_DIR"/agent-skill/*/; do
     [[ -d "$skill_src" ]] || continue
     for agent_home in "${AGENT_HOMES[@]}"; do
@@ -115,6 +130,24 @@ setup_complete() {
     done
   done
   return 0
+}
+
+skills_status() {
+  local skill_src agent_home homes=0 linked=0
+  for agent_home in "${AGENT_HOMES[@]}"; do
+    [[ -d "$agent_home" ]] || continue
+    homes=$((homes + 1))
+    for skill_src in "$PROJECT_DIR"/agent-skill/*/; do
+      [[ -d "$skill_src" ]] || continue
+      if linked_to "$agent_home/skills/$(basename "$skill_src")" "$skill_src"; then
+        linked=$((linked + 1))
+      fi
+    done
+  done
+  if (( homes == 0 )); then echo unavailable
+  elif (( linked == 0 )); then echo none
+  else echo installed
+  fi
 }
 
 install_plugin_link() {
@@ -188,6 +221,10 @@ register_omarchy() {
 }
 
 main() {
+  if $SKILLS_STATUS; then
+    skills_status
+    exit 0
+  fi
   if $IF_NEEDED && setup_complete; then
     exit 0
   fi
@@ -197,7 +234,7 @@ main() {
   install_cli
   install_desktop
   remove_old_menu
-  install_skills
+  if $SKILLS; then install_skills; fi
   register_omarchy
   log "done. Click the Servarr icon on the bar and open Settings to connect."
 }

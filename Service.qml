@@ -49,6 +49,9 @@ Item {
   property var reqQueue: []
   property var currentReq: null
   property string probingId: ""
+  // "" until checked, then installed, none or unavailable.
+  property string skillsState: ""
+  property bool skillsBusy: false
   property double slowFetchedAt: 0
   property double libraryFetchedAt: 0
 
@@ -210,6 +213,27 @@ Item {
   // --- Test-connection one-shot (used by SettingsView) ---------------------
   // Runs before Save, so the key is not in a header file yet. It reaches curl
   // on stdin as a config file rather than on the command line.
+  // --- Agent skills --------------------------------------------------------
+  // Linked only when the user presses the button in the Settings view.
+  function checkSkills() {
+    if (skillsProc.running) return
+    skillsProc.statusRun = true
+    skillsProc.command = [root.pluginDir + "/install.sh", "--skills-status"]
+    skillsProc.running = true
+  }
+
+  function setSkills(install) {
+    if (skillsProc.running) return
+    root.skillsBusy = true
+    skillsProc.statusRun = false
+    // --if-needed keeps the installer from rescanning plugins, which would
+    // reload this service in the middle of the run.
+    skillsProc.command = install
+      ? [root.pluginDir + "/install.sh", "--if-needed", "--skills"]
+      : [root.pluginDir + "/uninstall.sh", "--skills"]
+    skillsProc.running = true
+  }
+
   function testConnection(id, testBaseUrl, testKey) {
     var info = Model.serviceInfo(id)
     var base = Model.normalizeBaseUrl(testBaseUrl)
@@ -344,11 +368,27 @@ Item {
 
   // --- Lifecycle -----------------------------------------------------------
   // install.sh --if-needed finishes what omarchy plugin add does not (the
-  // command, the launcher, the agent skills) and exits at once when that is
-  // already done.
+  // command and the launcher) and exits at once when that is already done.
+  // It never links the agent skills; that takes install.sh --skills by hand.
   Process {
     id: installProc
     running: false
+  }
+
+  Process {
+    id: skillsProc
+    property bool statusRun: false
+    running: false
+    stdout: StdioCollector { id: skillsOut; waitForEnd: true }
+    onExited: function(code) {
+      if (skillsProc.statusRun) {
+        var word = String(skillsOut.text || "").trim()
+        if (word === "installed" || word === "none" || word === "unavailable") root.skillsState = word
+        return
+      }
+      root.skillsBusy = false
+      Qt.callLater(root.checkSkills)
+    }
   }
 
   Component.onCompleted: {

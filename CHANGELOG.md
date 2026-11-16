@@ -18,6 +18,12 @@ project uses [Semantic Versioning](https://semver.org/).
   library, health, add).
 - Installing is one command: `omarchy plugin add https://github.com/sette7blo/omaservarr.git --enable`.
   The plugin finishes its own setup the first time it loads.
+
+### Changed
+- The agent skills are opt-in. The plugin no longer links them into `~/.claude`,
+  `~/.codex`, `~/.agents` or `~/.copilot` when it loads. Settings has a button to install
+  or remove them, and `install.sh --skills` and `uninstall.sh --skills` do the same. Links made by an earlier version stay
+  until you remove them.
 - The manifest names a Monero address for tips (`"funding": { "monero": "..." }`).
 
 [Unreleased]: https://github.com/sette7blo/omaservarr/commits/main
