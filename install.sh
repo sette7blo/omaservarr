@@ -37,7 +37,7 @@ Usage: $0 [--sonarr-url URL] [--radarr-url URL] [--lidarr-url URL] [--skills] [-
 The --*-url options pre-fill the addresses the plugin and the omaservarr CLI
 share. API keys are entered in the plugin's Settings view.
 --skills    also links the agent skills into the agent homes that exist
-            (~/.claude, ~/.codex, ~/.agents, ~/.copilot). Never done without
+            (~/.agents, ~/.claude, ~/.codex, ~/.copilot). Never done without
             this option. uninstall.sh --skills removes them again.
             The Settings view has a button that does the same.
 --skills-status prints installed, none, or unavailable (no agent home found)
