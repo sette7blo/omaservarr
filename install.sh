@@ -135,7 +135,11 @@ linked_to() {
 setup_complete() {
   local skill_src agent_home
   in_place "$CLI_LINK" || return 1
-  [[ -e "$PROJECT_DIR/omaservarr.desktop" ]] && in_place "$DESKTOP_LINK" || return 1
+  if desktop_path_ok; then
+    # A launcher rendered by an older version pointed at ~/.local/bin/omaservarr.
+    render_desktop | cmp -s - "$PROJECT_DIR/omaservarr.desktop" || return 1
+    in_place "$DESKTOP_LINK" || return 1
+  fi
   [[ -L "$OLD_MENU_LINK" ]] && return 1
   $SKILLS || return 0
   for skill_src in "$PROJECT_DIR"/agent-skill/*/; do
@@ -181,10 +185,25 @@ install_cli() {
   link_path "$PROJECT_DIR/bin/omaservarr" "$CLI_LINK"
 }
 
+# The launcher runs the plugin's own bin/omaservarr, never ~/.local/bin/omaservarr:
+# that path may belong to another program the installer left alone. A plugin
+# path that would need quoting in an Exec key gets no launcher at all.
+desktop_path_ok() {
+  [[ "$PROJECT_DIR" =~ ^[A-Za-z0-9._/+-]+$ ]]
+}
+
+render_desktop() {
+  sed "s|@@OMASERVARR_CLI@@|$PROJECT_DIR/bin/omaservarr|g" "$PROJECT_DIR/omaservarr.desktop.in"
+}
+
 install_desktop() {
   # The launcher goes through the CLI so it follows the configured addresses.
   local rendered="$PROJECT_DIR/omaservarr.desktop"
-  sed "s|@@OMASERVARR_CLI@@|$CLI_LINK|g" "$PROJECT_DIR/omaservarr.desktop.in" > "$rendered"
+  if ! desktop_path_ok; then
+    log "no launcher: the plugin path has characters a launcher cannot hold safely"
+    return 0
+  fi
+  render_desktop > "$rendered"
   link_path "$rendered" "$DESKTOP_LINK"
   command -v update-desktop-database >/dev/null 2>&1 \
     && update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
