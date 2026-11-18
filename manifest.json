@@ -5,7 +5,7 @@
   "version": "0.1.1",
   "author": "sette7blo",
   "license": "MIT",
-  "description": "Sonarr, Radarr and Lidarr in the Omarchy bar: download queue, upcoming releases, recent imports, library and health in one panel.",
+  "description": "Sonarr, Radarr and Lidarr in the Omarchy bar. The icon counts active downloads and changes its colour when a service is down. One panel, five tabs: the queue with progress and why a download is stuck, upcoming releases by day, recent imports, the library with what is missing, and each service's health checks. It only reads; a command line tool, a launcher and optional agent skills come with it, and the skills add a title only after you confirm.",
   "homepage": "https://github.com/sette7blo/omaservarr",
   "funding": { "monero": "42iX2Knyef7Wi4rZxcWMw84DY7x1HUk67LKCqiqB1r5eLicJFvGbpCzUSiAqV8rGzbPW6yzmSGE93ZikU3PUkwnvQopggMB" },
   "kinds": [

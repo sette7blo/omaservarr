@@ -71,7 +71,7 @@ installed unless you ask for them.
 Five tabs over one list. Clicking a row opens that item in the service's
 web UI.
 
-![The Library tab: totals per service on top, then every series, movie and artist with how much of it is on disk](docs/panel.png)
+![The Library tab: totals per service on top, then every series, movie and artist with how much of it is on disk](preview.png)
 
 | Tab | Shows | Source |
 |---|---|---|

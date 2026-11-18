@@ -6,6 +6,10 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- The screenshot is now `preview.png` at the top of the repository, so the plugin
+  marketplace shows it, and the manifest description lists what the panel does.
+
 ## [v0.1.1] - 2026-11-18
 
 ### Fixed
