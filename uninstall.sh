@@ -21,12 +21,15 @@ CACHE_DIR="$CACHE_HOME/omarchy/omaservarr"
 
 log() { printf '[omaservarr] %s\n' "$*"; }
 
+# Removes only links that point into this plugin; a command or launcher of the
+# same name from somewhere else stays.
 remove_link() {
-  local path="$1"
-  if [[ -L "$path" ]]; then
-    unlink "$path"
-    log "removed $path"
-  fi
+  local path="$1" target
+  [[ -L "$path" ]] || return 0
+  target="$(readlink -m "$path")"
+  [[ "$target" == "$PROJECT_DIR" || "$target" == "$PROJECT_DIR/"* ]] || return 0
+  unlink "$path"
+  log "removed $path"
 }
 
 # Only links that point into this plugin are removed, so a skill of the same
