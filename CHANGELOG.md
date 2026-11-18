@@ -6,6 +6,8 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-11-18
+
 ### Fixed
 - The installer no longer moves an existing `~/.local/bin/omaservarr`, `omaservarr.desktop` or agent
   skill aside to put its own link there. A path that is already taken is left as it is,
@@ -32,4 +34,5 @@ project uses [Semantic Versioning](https://semver.org/).
   until you remove them.
 - The manifest names a Monero address for tips (`"funding": { "monero": "..." }`).
 
-[Unreleased]: https://github.com/sette7blo/omaservarr/commits/main
+[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.0...HEAD
+[v0.1.0]: https://github.com/sette7blo/omaservarr/releases/tag/v0.1.0
