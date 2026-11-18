@@ -6,6 +6,8 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.1.2] - 2026-11-18
+
 ### Changed
 - The screenshot is now `preview.png` at the top of the repository, so the plugin
   marketplace shows it, and the manifest description lists what the panel does.
@@ -46,6 +48,7 @@ project uses [Semantic Versioning](https://semver.org/).
   until you remove them.
 - The manifest names a Monero address for tips (`"funding": { "monero": "..." }`).
 
-[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.2...HEAD
+[v0.1.2]: https://github.com/sette7blo/omaservarr/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/sette7blo/omaservarr/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/sette7blo/omaservarr/releases/tag/v0.1.0
