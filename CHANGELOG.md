@@ -6,6 +6,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- The launcher (`omaservarr.desktop`) runs the plugin's own `bin/omaservarr` instead of `~/.local/bin/omaservarr`,
+  which may belong to another program when the installer left it alone. Launchers written by earlier versions are rewritten on the next load.
+  If the plugin folder's path holds characters a launcher cannot carry safely, no
+  launcher is made.
+
 ## [v0.1.0] - 2026-11-18
 
 ### Fixed
