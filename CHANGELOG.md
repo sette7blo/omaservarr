@@ -6,6 +6,8 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-11-18
+
 ### Fixed
 - The launcher (`omaservarr.desktop`) runs the plugin's own `bin/omaservarr` instead of `~/.local/bin/omaservarr`,
   which may belong to another program when the installer left it alone. Launchers written by earlier versions are rewritten on the next load.
@@ -40,5 +42,6 @@ project uses [Semantic Versioning](https://semver.org/).
   until you remove them.
 - The manifest names a Monero address for tips (`"funding": { "monero": "..." }`).
 
-[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.1...HEAD
+[v0.1.1]: https://github.com/sette7blo/omaservarr/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/sette7blo/omaservarr/releases/tag/v0.1.0
