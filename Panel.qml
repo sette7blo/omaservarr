@@ -38,7 +38,7 @@ Panel {
   // A service that has since been disconnected no longer filters anything.
   readonly property string activeService: ids.indexOf(libraryService) !== -1 ? libraryService : ""
   readonly property bool typing: (settingsLoader.item ? settingsLoader.item.editorOpen === true : false)
-    || filterField.activeFocus
+    || (filterLoader.item ? filterLoader.item.activeFocus === true : false)
 
   readonly property string heroMeta: {
     if (showSettings) return "Settings"
@@ -245,13 +245,20 @@ Panel {
           width: parent.width
           spacing: Style.spacing.lg
 
-          TextField {
-            id: filterField
+          // The text input exists only while the filter is on screen. A
+          // hidden input would still answer clipboard offers from other
+          // apps, and a stalled transfer would block the shell.
+          Loader {
+            id: filterLoader
             Layout.fillWidth: true
-            placeholderText: "Filter by title"
-            foreground: root.foreground
-            accent: root.accent
-            onTextEdited: root.libraryFilter = text
+            active: root.opened && root.showLists && root.tab === "library"
+            sourceComponent: TextField {
+              placeholderText: "Filter by title"
+              foreground: root.foreground
+              accent: root.accent
+              Component.onCompleted: text = root.libraryFilter
+              onTextEdited: root.libraryFilter = text
+            }
           }
           ButtonGroup {
             options: [{ value: "", label: "All" }, { value: "missing", label: "Missing" }]

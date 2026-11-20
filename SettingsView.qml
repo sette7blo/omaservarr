@@ -24,6 +24,10 @@ Column {
   property var draft: Model.emptyConnection()
   property var probes: ({})
   property string probingId: ""
+  // The ticket of the test this view waits for, and whether the address or
+  // key of that service changed since it started, so its answer is old.
+  property int probeTicket: 0
+  property bool probeStale: false
   property bool edited: false
 
   readonly property var info: Model.serviceInfo(current)
@@ -49,6 +53,8 @@ Column {
     daysField.value = service.calendarDays
     probes = ({})
     probingId = ""
+    probeTicket = 0
+    probeStale = false
     edited = false
     showCurrent()
   }
@@ -58,6 +64,7 @@ Column {
     patch[current] = { baseUrl: urlField.text, apiKey: keyField.text }
     draft = Model.mergeConnection(draft, patch)
     edited = true
+    if (probingId === current) probeStale = true
     var next = {}
     for (var k in probes) if (k !== current) next[k] = probes[k]
     probes = next
@@ -84,12 +91,18 @@ Column {
     function onConnectionChanged() { if (!root.edited) root.reset() }
     function onPollSecondsChanged() { if (!root.edited) root.reset() }
     function onCalendarDaysChanged() { if (!root.edited) root.reset() }
-    function onConnectionProbed(serviceId, ok, message) {
+    function onConnectionProbed(serviceId, ticket, ok, message) {
+      if (ticket !== root.probeTicket) return
+      root.probeTicket = 0
+      root.probingId = ""
+      if (root.probeStale) {
+        root.probeStale = false
+        return
+      }
       var next = {}
       for (var k in root.probes) next[k] = root.probes[k]
       next[serviceId] = { ok: ok, message: String(message || "") }
       root.probes = next
-      if (root.probingId === serviceId) root.probingId = ""
     }
   }
 
@@ -278,7 +291,13 @@ Column {
       onClicked: {
         if (!root.service || root.probingId !== "") return
         root.probingId = root.current
-        root.service.testConnection(root.current, urlField.text, keyField.text)
+        root.probeStale = false
+        // The answer can arrive before testConnection returns.
+        root.probeTicket = root.service.probeTicket + 1
+        if (root.service.testConnection(root.current, urlField.text, keyField.text) === 0) {
+          root.probingId = ""
+          root.probeTicket = 0
+        }
       }
     }
 

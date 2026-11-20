@@ -260,11 +260,17 @@ function headerFileName(id) {
   return "header-" + String(id || "") + ".txt"
 }
 
+// Every request that carries a key starts curl this way. -q must come first:
+// it skips the user's ~/.curlrc, which could turn on redirects or a proxy.
+// -L with --max-redirs 0 turns any redirect into an error (exit 47) instead
+// of following it, so the key header only ever goes to the saved address.
+var CURL_SAFE = "curl -q -L --max-redirs 0 --proto '=http,https'"
+
 // Prints the response body, a newline and the HTTP status. Exits with curl's
 // own code when the server could not be reached.
 function fetchCmd(headerPath, url, filter) {
   return ["sh", "-c",
-    "out=$(curl -sS -m 45 --max-filesize 67108864 --proto '=http,https' -H \"@$1\" -w '\\n%{http_code}' -- \"$2\") || exit $?\n"
+    "out=$(" + CURL_SAFE + " -sS -m 45 --max-filesize 67108864 -H \"@$1\" -w '\\n%{http_code}' -- \"$2\") || exit $?\n"
       + "code=$(printf '%s' \"$out\" | tail -n 1)\n"
       + "body=$(printf '%s' \"$out\" | sed '$d')\n"
       + "if [ -n \"$3\" ] && [ \"$code\" = 200 ] && command -v jq >/dev/null 2>&1; then\n"
@@ -274,13 +280,24 @@ function fetchCmd(headerPath, url, filter) {
     "omaservarr-fetch", String(headerPath || ""), String(url || ""), String(filter || "")]
 }
 
+// A status answer is a few hundred bytes; anything past this is not one.
+var PROBE_MAX_BYTES = 65536
+
 // One-off status request for the settings form. The curl config (holding the
 // key) arrives on stdin; head passes on exactly `bytes` of it and then closes
 // the pipe, so curl does not wait for an end of file the shell never sends.
+// The body goes to a private temporary file capped by --max-filesize, and only
+// its first PROBE_MAX_BYTES reach the shell, so a fast endless answer can
+// never pile up in memory. Exit 63 means the answer was too large.
 function probeCmd(bytes, url) {
   return ["sh", "-c",
-    "head -c \"$1\" | curl -sS -m 10 --proto '=http,https' -w '\\n%{http_code}' -K - -- \"$2\"\n",
-    "omaservarr-probe", String(parseInt(bytes, 10) || 0), String(url || "")]
+    "umask 077\n"
+      + "tmp=$(mktemp) || exit 1\n"
+      + "trap 'rm -f \"$tmp\"' EXIT\n"
+      + "code=$(head -c \"$1\" | " + CURL_SAFE + " -sS -m 10 --max-filesize \"$3\" -o \"$tmp\" -w '%{http_code}' -K - -- \"$2\") || exit $?\n"
+      + "head -c \"$3\" \"$tmp\"\n"
+      + "printf '\\n%s' \"$code\"\n",
+    "omaservarr-probe", String(parseInt(bytes, 10) || 0), String(url || ""), String(PROBE_MAX_BYTES)]
 }
 
 function splitResponse(raw) {
@@ -1012,6 +1029,7 @@ if (typeof module !== "undefined" && module.exports) {
     headerText: headerText, headerFileName: headerFileName, fetchCmd: fetchCmd, probeCmd: probeCmd,
     splitResponse: splitResponse, utf8ByteLength: utf8ByteLength,
     ensurePrivateDirsCmd: ensurePrivateDirsCmd, atomicWriteCmd: atomicWriteCmd,
+    CURL_SAFE: CURL_SAFE, PROBE_MAX_BYTES: PROBE_MAX_BYTES,
     text: text, parseStatus: parseStatus, parseQueue: parseQueue, parseHealth: parseHealth,
     parseCalendar: parseCalendar, parseRecent: parseRecent, parseMissing: parseMissing,
     parseLibrary: parseLibrary, emptyState: emptyState, applyResponse: applyResponse,
