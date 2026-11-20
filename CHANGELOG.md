@@ -6,6 +6,8 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.1.3] - 2026-11-20
+
 ### Fixed
 - Every request that carries an API key (panel, Test connection, command line) ignores
   `~/.curlrc` and refuses redirects, so the key is only ever sent to the saved address.
@@ -62,7 +64,8 @@ project uses [Semantic Versioning](https://semver.org/).
   until you remove them.
 - The manifest names a Monero address for tips (`"funding": { "monero": "..." }`).
 
-[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/sette7blo/omaservarr/compare/v0.1.3...HEAD
+[v0.1.3]: https://github.com/sette7blo/omaservarr/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/sette7blo/omaservarr/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/sette7blo/omaservarr/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/sette7blo/omaservarr/releases/tag/v0.1.0
