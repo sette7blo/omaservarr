@@ -6,6 +6,20 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Every request that carries an API key (panel, Test connection, command line) ignores
+  `~/.curlrc` and refuses redirects, so the key is only ever sent to the saved address.
+- After Save, polling waits until every service's key file was written. If one write fails,
+  polling stays stopped instead of sending an older key to a new address.
+- Test connection stops after 64 KB of answer and reports an address that answers with far
+  more, or that redirects elsewhere.
+- A Test connection answer is dropped when the address or key was changed while it ran,
+  so it can no longer mark the changed values as connected.
+- The library filter's text input exists only while the panel shows it, so a closed panel
+  no longer reads clipboard offers from other apps.
+- The optional add-title skill keeps its lookup in a private folder per title and adds the
+  exact result the user confirmed, picked by its id, rather than the first result.
+
 ## [v0.1.2] - 2026-11-18
 
 ### Changed

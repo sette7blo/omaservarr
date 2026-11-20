@@ -37,18 +37,23 @@ Item {
   readonly property var summary: Model.summary(snapshot, configuredIds)
 
   // --- Settings test-connection result (SettingsView listens) --------------
-  signal connectionProbed(string serviceId, bool ok, string message)
+  // `ticket` is the number testConnection returned, so a view can tell a
+  // late answer about values it has since changed from the current one.
+  signal connectionProbed(string serviceId, int ticket, bool ok, string message)
 
   // --- Internal state ------------------------------------------------------
   property bool dirsReady: false
   property bool headersReady: false
   property int headerGen: 0
+  property int headerPending: 0
+  property bool headerFailed: false
   property var writeQueue: []
   property string pendingWriteText: ""
   property string pendingWriteThen: ""
   property var reqQueue: []
   property var currentReq: null
   property string probingId: ""
+  property int probeTicket: 0
   // "" until checked, then installed, none or unavailable.
   property string skillsState: ""
   property bool skillsBusy: false
@@ -111,17 +116,30 @@ Item {
   }
 
   // One curl header file per service keeps the keys out of process listings.
+  // Polling waits until every file of the newest batch is written. One failed
+  // write keeps it stopped, since that file may still hold an older key that
+  // must not go to a newly saved address.
   function refreshHeaders() {
     if (!root.dirsReady) return
     root.headersReady = false
-    var ids = root.configuredIds
-    if (!ids.length) return
     root.headerGen += 1
+    root.headerFailed = false
+    var ids = root.configuredIds
+    root.headerPending = ids.length
     for (var i = 0; i < ids.length; i++) {
-      var last = i === ids.length - 1
       enqueueWrite(root.cacheDir, Model.headerFileName(ids[i]),
-        Model.headerText(root.connection[ids[i]].apiKey), last ? "headers:" + root.headerGen : "header")
+        Model.headerText(root.connection[ids[i]].apiKey), "headers:" + root.headerGen)
     }
+  }
+
+  function headerWritten(then, ok) {
+    if (then !== "headers:" + root.headerGen) return  // an older batch
+    if (!ok) root.headerFailed = true
+    root.headerPending -= 1
+    if (root.headerPending > 0 || root.headerFailed) return
+    root.headersReady = true
+    root.forcePoll(true)
+    if (root.panelOpen) root.ensureLibrary(false)
   }
 
   // --- HTTP request queue --------------------------------------------------
@@ -234,20 +252,23 @@ Item {
     skillsProc.running = true
   }
 
+  // Returns the ticket the answer will carry, or 0 when no test started.
   function testConnection(id, testBaseUrl, testKey) {
     var info = Model.serviceInfo(id)
     var base = Model.normalizeBaseUrl(testBaseUrl)
     var key = String(testKey || "").replace(/\s+/g, "")
+    if (root.probingId !== "") return 0
+    root.probeTicket += 1
     if (!info || !Model.isHttpUrl(base) || !Model.isValidKey(key)) {
-      root.connectionProbed(id, false, "Enter the address and the API key first.")
-      return
+      root.connectionProbed(id, root.probeTicket, false, "Enter the address and the API key first.")
+      return root.probeTicket
     }
-    if (root.probingId !== "") return
     root.probingId = id
     probeProc.config = "header = \"X-Api-Key: " + key + "\"\nheader = \"Accept: application/json\"\n"
     probeProc.command = Model.probeCmd(Model.utf8ByteLength(probeProc.config),
       Model.apiUrl(base, Model.requestPath(id, "status")))
     probeProc.running = true
+    return root.probeTicket
   }
 
   // --- Processes -----------------------------------------------------------
@@ -273,12 +294,7 @@ Item {
       var then = root.pendingWriteThen
       root.pendingWriteText = ""
       root.pendingWriteThen = ""
-      // Only the last header of the newest batch unlocks polling.
-      if (code === 0 && then === "headers:" + root.headerGen) {
-        root.headersReady = true
-        root.forcePoll(true)
-        if (root.panelOpen) root.ensureLibrary(false)
-      }
+      if (then.indexOf("headers:") === 0) root.headerWritten(then, code === 0)
       Qt.callLater(root.pumpWrites)
       Qt.callLater(root.pump)
     }
@@ -321,25 +337,35 @@ Item {
     }
     onExited: function(code) {
       var id = root.probingId
+      var t = root.probeTicket
       var name = Model.serviceName(id)
       root.probingId = ""
+      var report = function(ok, message) { root.connectionProbed(id, t, ok, message) }
+      if (code === 63) {
+        report(false, "The server sent a far larger answer than " + name + " does. Check the address.")
+        return
+      }
+      if (code === 47) {
+        report(false, "The address redirects elsewhere. Enter the address " + name + " answers on directly.")
+        return
+      }
       if (code !== 0) {
-        root.connectionProbed(id, false, "Could not reach the server. Check the address and that " + name + " is running.")
+        report(false, "Could not reach the server. Check the address and that " + name + " is running.")
         return
       }
       var res = Model.splitResponse(String(probeOut.text || ""))
       if (res.status === 200) {
         var info = Model.parseStatus(res.body)
-        if (!info) root.connectionProbed(id, false, "The server did not respond like " + name + ". Check the address.")
+        if (!info) report(false, "The server did not respond like " + name + ". Check the address.")
         else if (info.appName && info.appName.toLowerCase() !== id)
-          root.connectionProbed(id, false, "This address answers as " + info.appName + ", not " + name + ".")
-        else root.connectionProbed(id, true, "Connected to " + name + (info.version ? " " + info.version : ""))
+          report(false, "This address answers as " + info.appName + ", not " + name + ".")
+        else report(true, "Connected to " + name + (info.version ? " " + info.version : ""))
       } else if (res.status === 401 || res.status === 403) {
-        root.connectionProbed(id, false, name + " did not accept this API key.")
+        report(false, name + " did not accept this API key.")
       } else if (res.status > 0) {
-        root.connectionProbed(id, false, name + " returned HTTP " + res.status + ".")
+        report(false, name + " returned HTTP " + res.status + ".")
       } else {
-        root.connectionProbed(id, false, "The server did not respond like " + name + ". Check the address.")
+        report(false, "The server did not respond like " + name + ". Check the address.")
       }
     }
   }

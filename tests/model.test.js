@@ -291,3 +291,127 @@ test("probe status: app name and version", () => {
   assert.equal(M.parseStatus("<html>"), null)
   assert.equal(M.parseStatus("{}"), null)
 })
+
+// ----- Requests that carry a key -------------------------------------------
+// A local server with a redirect, run against a ~/.curlrc that asks curl to
+// follow redirects. The key header must never reach the redirect target.
+
+const http = require("node:http")
+const { execFile } = require("node:child_process")
+const KEY = "0123456789abcdef0123456789abcdef"
+
+function startServer() {
+  const seen = []
+  const server = http.createServer((req, res) => {
+    seen.push({ url: req.url, key: req.headers["x-api-key"] || "" })
+    if (req.url.indexOf("/hop") !== -1) {
+      res.writeHead(302, { Location: "/elsewhere" })
+      res.end()
+    } else if (req.url.indexOf("/flood") !== -1) {
+      // Chunked, so curl cannot refuse it up front from a Content-Length.
+      res.writeHead(200, { "Content-Type": "application/json" })
+      const chunk = Buffer.alloc(65536, 0x61)
+      const pump = () => { while (res.write(chunk)) {} }
+      res.on("drain", pump)
+      res.on("close", () => res.removeListener("drain", pump))
+      pump()
+    } else {
+      res.writeHead(200, { "Content-Type": "application/json" })
+      res.end(JSON.stringify({ appName: "Sonarr", version: "4.0.0" }))
+    }
+  })
+  return new Promise(resolve => server.listen(0, "127.0.0.1", () =>
+    resolve({ server, seen, base: "http://127.0.0.1:" + server.address().port })))
+}
+
+function curlHome() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "omaservarr-home-"))
+  fs.writeFileSync(path.join(dir, ".curlrc"), "location\nmax-redirs = 5\n")
+  return dir
+}
+
+function run(cmd, opts) {
+  return new Promise(resolve => {
+    const child = execFile(cmd[0], cmd.slice(1), Object.assign({ encoding: "utf8", maxBuffer: 1 << 26 }, opts),
+      (err, stdout) => resolve({ code: err ? (typeof err.code === "number" ? err.code : -1) : 0, stdout }))
+    if (opts && opts.input !== undefined) { child.stdin.end(opts.input) }
+  })
+}
+
+function envFor(home, extra) {
+  return Object.assign({}, process.env, { HOME: home, CURL_HOME: home, XDG_CONFIG_HOME: home }, extra || {})
+}
+
+test("the curlrc really follows redirects without our flags", async () => {
+  const { server, seen, base } = await startServer()
+  const home = curlHome()
+  try {
+    const r = await run(["curl", "-sS", "-H", "X-Api-Key: " + KEY, base + "/hop"], { env: envFor(home) })
+    assert.equal(r.code, 0)
+    assert.ok(seen.some(s => s.url.indexOf("/elsewhere") === 0 && s.key === KEY))
+  } finally { server.close(); fs.rmSync(home, { recursive: true, force: true }) }
+})
+
+test("fetchCmd ignores the curlrc and does not follow a redirect", async () => {
+  const { server, seen, base } = await startServer()
+  const home = curlHome()
+  const header = path.join(home, "header.txt")
+  fs.writeFileSync(header, M.headerText(KEY))
+  try {
+    const r = await run(M.fetchCmd(header, base + "/hop", ""), { env: envFor(home) })
+    assert.equal(r.code, 47)
+    assert.equal(seen.length, 1)
+    assert.ok(seen.every(s => s.url.indexOf("/elsewhere") !== 0))
+  } finally { server.close(); fs.rmSync(home, { recursive: true, force: true }) }
+})
+
+test("probeCmd ignores the curlrc and does not follow a redirect", async () => {
+  const { server, seen, base } = await startServer()
+  const home = curlHome()
+  const config = "header = \"X-Api-Key: " + KEY + "\"\n"
+  try {
+    const r = await run(M.probeCmd(Buffer.byteLength(config), base + "/hop"), { env: envFor(home), input: config })
+    assert.equal(r.code, 47)
+    assert.equal(seen.length, 1)
+    assert.ok(seen.every(s => s.url.indexOf("/elsewhere") !== 0))
+  } finally { server.close(); fs.rmSync(home, { recursive: true, force: true }) }
+})
+
+test("probeCmd still reads a normal status answer", async () => {
+  const { server, seen, base } = await startServer()
+  const home = curlHome()
+  const config = "header = \"X-Api-Key: " + KEY + "\"\n"
+  try {
+    const r = await run(M.probeCmd(Buffer.byteLength(config), base + "/api/v3/system/status"), { env: envFor(home), input: config })
+    assert.equal(r.code, 0)
+    const res = M.splitResponse(r.stdout)
+    assert.equal(res.status, 200)
+    assert.equal(M.parseStatus(res.body).appName, "Sonarr")
+    assert.equal(seen[0].key, KEY)
+  } finally { server.close(); fs.rmSync(home, { recursive: true, force: true }) }
+})
+
+test("probeCmd stops an endless fast answer with little output", async () => {
+  const { server, base } = await startServer()
+  const home = curlHome()
+  const config = "header = \"X-Api-Key: " + KEY + "\"\n"
+  try {
+    const r = await run(M.probeCmd(Buffer.byteLength(config), base + "/flood"), { env: envFor(home), input: config })
+    assert.equal(r.code, 63)
+    assert.ok(r.stdout.length <= M.PROBE_MAX_BYTES + 16)
+  } finally { server.close(); fs.rmSync(home, { recursive: true, force: true }) }
+})
+
+test("the CLI ignores the curlrc and does not follow a redirect", async () => {
+  const { server, seen, base } = await startServer()
+  const home = curlHome()
+  const cli = path.join(__dirname, "..", "bin", "omaservarr")
+  try {
+    const r = await run([cli, "api", "sonarr", "GET", "/hop"],
+      { env: envFor(home, { XDG_STATE_HOME: home, SONARR_URL: base, SONARR_API_KEY: KEY }) })
+    assert.notEqual(r.code, 0)
+    assert.equal(seen.length, 1)
+    assert.equal(seen[0].key, KEY)
+    assert.ok(seen.every(s => s.url.indexOf("/elsewhere") !== 0))
+  } finally { server.close(); fs.rmSync(home, { recursive: true, force: true }) }
+})

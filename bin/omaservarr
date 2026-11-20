@@ -68,9 +68,11 @@ require_service() {
 
 # api <service> <METHOD> <path below the API root> [json body]
 # The key goes to curl on stdin, so it never shows up in a process listing.
+# -q (first) skips ~/.curlrc; -L --max-redirs 0 makes a redirect an error, so
+# the key header is never sent anywhere but the saved address.
 api() {
   local service="$1" method="$2" path="$3" data="${4:-}"
-  local -a args=(-fsS -m 60 --proto '=http,https' -X "$method" -K -)
+  local -a args=(-q -L --max-redirs 0 -fsS -m 60 --proto '=http,https' -X "$method" -K -)
   if [[ -n "$data" ]]; then
     args+=(-H 'Content-Type: application/json' --data-binary "$data")
   fi
