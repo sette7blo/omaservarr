@@ -252,7 +252,7 @@ Panel {
             id: filterLoader
             Layout.fillWidth: true
             active: root.opened && root.showLists && root.tab === "library"
-            sourceComponent: TextField {
+            sourceComponent: GuardedTextField {
               placeholderText: "Filter by title"
               foreground: root.foreground
               accent: root.accent

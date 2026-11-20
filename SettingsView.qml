@@ -143,7 +143,7 @@ Column {
     spacing: Style.spacing.md
 
     FieldLabel { text: (root.info ? root.info.name : "") + " address" }
-    TextField {
+    GuardedTextField {
       id: urlField
       width: parent.width
       placeholderText: root.info ? root.info.defaultUrl : ""
@@ -159,7 +159,7 @@ Column {
     spacing: Style.spacing.md
 
     FieldLabel { text: "API key" }
-    TextField {
+    GuardedTextField {
       id: keyField
       width: parent.width
       placeholderText: "32 characters"
@@ -220,6 +220,8 @@ Column {
     accent: root.accent
     fontFamily: root.fontFamily
     onModified: function(v) { root.edited = true; pollField.value = v }
+    // Editable only while focused, like GuardedTextField.
+    field.editable: pollField.field.activeFocus
   }
 
   NumberField {
@@ -233,6 +235,8 @@ Column {
     accent: root.accent
     fontFamily: root.fontFamily
     onModified: function(v) { root.edited = true; daysField.value = v }
+    // Editable only while focused, like GuardedTextField.
+    field.editable: daysField.field.activeFocus
   }
 
   PanelSeparator { foreground: root.foreground }
